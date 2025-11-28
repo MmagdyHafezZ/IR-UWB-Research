@@ -10,7 +10,7 @@ IEEE Transactions on Signal Processing, 62(3), 531-544.
 """
 
 import numpy as np
-from scipy.fft import fft, ifft, fftfreq
+from scipy.fftpack import fft, fftfreq, ifft
 
 
 def vmd(signal, alpha=2000, tau=0.0, K=3, DC=False, init=1, tol=1e-7, max_iter=500):

@@ -212,48 +212,6 @@ class Visualizer:
 
         _show_plot_if_enabled()
 
-    def plot_frequency_spectrum(self, frequencies, spectrum, breathing_rate_freq=None, save=True):
-        """
-        Plot frequency spectrum of breathing signal
-
-        Args:
-            frequencies: Frequency values in Hz
-            spectrum: Magnitude spectrum
-            breathing_rate_freq: Detected breathing rate in Hz
-            save: Whether to save the plot
-        """
-        fig, ax = plt.subplots(figsize=(12, 6))
-
-        
-        mask = (frequencies >= 0) & (frequencies <= 1.0)
-        freq_plot = frequencies[mask]
-        spec_plot = spectrum[mask]
-
-        ax.plot(freq_plot, spec_plot, 'b-', linewidth=2)
-        ax.set_xlabel('Frequency (Hz)')
-        ax.set_ylabel('Magnitude')
-        ax.set_title('Frequency Spectrum of Breathing Signal')
-        ax.grid(True, alpha=0.3)
-
-        
-        ax.axvspan(Config.BREATHING_FREQ_MIN, Config.BREATHING_FREQ_MAX,
-                  alpha=0.2, color='green', label='Breathing Range')
-
-        
-        if breathing_rate_freq is not None:
-            ax.axvline(breathing_rate_freq, color='r', linestyle='--',
-                      linewidth=2, label=f'Detected Rate ({breathing_rate_freq:.3f} Hz)')
-
-        ax.legend()
-
-        plt.tight_layout()
-
-        if save:
-            plt.savefig(f'{self.output_dir}/frequency_spectrum.png', dpi=150, bbox_inches='tight')
-            print(f"Saved plot to {self.output_dir}/frequency_spectrum.png")
-
-        _show_plot_if_enabled()
-
     def plot_complete_analysis(self, rtm, variance_profile, range_bins, time_axis,
                               chest_bin, breathing_waveform, breathing_time,
                               frequencies, spectrum, results, save=True):
@@ -273,77 +231,104 @@ class Visualizer:
             results: Dictionary with analysis results
             save: Whether to save the plot
         """
-        fig = plt.figure(figsize=(18, 12))
-        gs = GridSpec(3, 2, figure=fig, hspace=0.3, wspace=0.3)
+        # ---- Safely pull metrics from results ----
+        br_time = float(results.get('breathing_rate_time', 0.0))
+        br_freq = float(results.get('breathing_rate_freq', 0.0))
+        br_avg = float(results.get('breathing_rate_avg', 0.0))
+        signal_quality = float(results.get('signal_quality', 0.0))
 
-        
+        pattern = results.get('pattern_metrics', {}) or {}
+        num_breaths = int(pattern.get('num_breaths', 0))
+        breathing_depth = float(pattern.get('breathing_depth', 0.0))
+        regularity = float(pattern.get('regularity', 0.0))
+        ie_ratio = float(pattern.get('ie_ratio', 0.0))
+
+        fig = plt.figure(figsize=(18, 12))
+        gs = GridSpec(3, 2)
+        plt.subplots_adjust(hspace=0.3, wspace=0.3)
+
+        # ------------------------------------------------------------------
+        # 1) Range–Time Matrix
+        # ------------------------------------------------------------------
         ax1 = fig.add_subplot(gs[0, :])
         magnitude = np.abs(rtm)
         magnitude_db = 20 * np.log10(magnitude + 1e-10)
         extent = [range_bins[0], range_bins[-1], time_axis[-1], time_axis[0]]
         im1 = ax1.imshow(magnitude_db, aspect='auto', cmap='jet', extent=extent)
         ax1.axvline(range_bins[chest_bin], color='white', linestyle='--',
-                   linewidth=2, label='Chest Location')
+                    linewidth=2, label='Chest Location')
         ax1.set_xlabel('Range (m)')
         ax1.set_ylabel('Time (s)')
         ax1.set_title('Range-Time Matrix (Magnitude)')
         plt.colorbar(im1, ax=ax1, label='Magnitude (dB)')
         ax1.legend(loc='upper right')
 
-        
+        # ------------------------------------------------------------------
+        # 2) Variance Profile
+        # ------------------------------------------------------------------
         ax2 = fig.add_subplot(gs[1, 0])
         ax2.plot(range_bins, variance_profile, 'b-', linewidth=2)
         ax2.axvline(range_bins[chest_bin], color='r', linestyle='--',
-                   linewidth=2, label=f'Chest: {range_bins[chest_bin]:.2f} m')
+                    linewidth=2, label=f'Chest: {range_bins[chest_bin]:.2f} m')
         ax2.set_xlabel('Range (m)')
         ax2.set_ylabel('Variance')
         ax2.set_title('Slow-Time Variance Profile')
         ax2.grid(True, alpha=0.3)
         ax2.legend()
 
-        
+        # ------------------------------------------------------------------
+        # 3) Breathing waveform
+        # ------------------------------------------------------------------
         ax3 = fig.add_subplot(gs[1, 1])
         ax3.plot(breathing_time, breathing_waveform, 'b-', linewidth=1.5)
         ax3.set_xlabel('Time (s)')
         ax3.set_ylabel('Chest Displacement (a.u.)')
-        ax3.set_title(f'Breathing Waveform ({results["breathing_rate_avg"]:.1f} BPM)')
+        ax3.set_title(f'Breathing Waveform ({br_avg:.1f} BPM)')
         ax3.grid(True, alpha=0.3)
 
-        
+        # ------------------------------------------------------------------
+        # 4) Frequency spectrum
+        # ------------------------------------------------------------------
         ax4 = fig.add_subplot(gs[2, 0])
         mask = (frequencies >= 0) & (frequencies <= 1.0)
         ax4.plot(frequencies[mask], spectrum[mask], 'b-', linewidth=2)
         ax4.axvspan(Config.BREATHING_FREQ_MIN, Config.BREATHING_FREQ_MAX,
-                   alpha=0.2, color='green', label='Breathing Range')
-        breathing_freq_hz = results['breathing_rate_freq'] / 60
-        ax4.axvline(breathing_freq_hz, color='r', linestyle='--',
-                   linewidth=2, label=f'{breathing_freq_hz:.3f} Hz')
+                    alpha=0.2, color='green', label='Breathing Range')
+
+        # Only plot the red vertical line if we have a non-zero freq-domain rate
+        if br_freq > 0:
+            breathing_freq_hz = br_freq / 60.0
+            ax4.axvline(breathing_freq_hz, color='r', linestyle='--',
+                        linewidth=2, label=f'{breathing_freq_hz:.3f} Hz')
+
         ax4.set_xlabel('Frequency (Hz)')
         ax4.set_ylabel('Magnitude')
         ax4.set_title('Breathing Frequency Spectrum')
         ax4.grid(True, alpha=0.3)
         ax4.legend()
 
-        
+        # ------------------------------------------------------------------
+        # 5) Text summary panel
+        # ------------------------------------------------------------------
         ax5 = fig.add_subplot(gs[2, 1])
         ax5.axis('off')
 
         summary_text = f"""
         === RESPIRATION ANALYSIS RESULTS ===
 
-        Breathing Rate (Time-domain): {results['breathing_rate_time']:.1f} BPM
-        Breathing Rate (Freq-domain): {results['breathing_rate_freq']:.1f} BPM
-        Average Breathing Rate: {results['breathing_rate_avg']:.1f} BPM
+        Breathing Rate (Time-domain): {br_time:.1f} BPM
+        Breathing Rate (Freq-domain): {br_freq:.1f} BPM
+        Average Breathing Rate: {br_avg:.1f} BPM
 
-        Signal Quality: {results['signal_quality']:.2f}
+        Signal Quality: {signal_quality:.2f}
 
         Chest Location: {range_bins[chest_bin]:.2f} m (bin {chest_bin})
 
         === BREATHING PATTERN ===
-        Number of Breaths: {results['pattern_metrics']['num_breaths']}
-        Breathing Depth: {results['pattern_metrics']['breathing_depth']:.3f}
-        Regularity: {results['pattern_metrics']['regularity']:.2f}
-        I/E Ratio: {results['pattern_metrics']['ie_ratio']:.2f}
+        Number of Breaths: {num_breaths}
+        Breathing Depth: {breathing_depth:.3f}
+        Regularity: {regularity:.2f}
+        I/E Ratio: {ie_ratio:.2f}
 
         === SYSTEM PARAMETERS ===
         PRF: {Config.PULSE_REPETITION_FREQ} Hz
@@ -351,15 +336,20 @@ class Visualizer:
         Max Range: {Config.get_max_range():.2f} m
         """
 
-        ax5.text(0.1, 0.5, summary_text, transform=ax5.transAxes,
-                fontsize=10, verticalalignment='center', fontfamily='monospace',
-                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
+        ax5.text(
+            0.1, 0.5, summary_text, transform=ax5.transAxes,
+            fontsize=10, verticalalignment='center', fontfamily='monospace',
+            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3)
+        )
 
         if save:
-            plt.savefig(f'{self.output_dir}/complete_analysis.png', dpi=150, bbox_inches='tight')
+            plt.savefig(f'{self.output_dir}/complete_analysis.png',
+                        dpi=150, bbox_inches='tight')
             print(f"Saved comprehensive analysis to {self.output_dir}/complete_analysis.png")
 
         _show_plot_if_enabled()
+
+
 
     def plot_vmd_modes(self, modes, omega, fs, time_axis=None, selected_mode_idx=None, save=True):
         """
@@ -373,7 +363,7 @@ class Visualizer:
             selected_mode_idx: Index of selected respiration mode
             save: Whether to save the plot
         """
-        from scipy.fft import fft, fftfreq
+        from scipy.fftpack import fft, fftfreq
 
         K = modes.shape[0]
         N = modes.shape[1]
@@ -523,7 +513,7 @@ class Visualizer:
             vmd_rate: Breathing rate from VMD method (BPM)
             save: Whether to save the plot
         """
-        from scipy.fft import fft, fftfreq
+        from scipy.fftpack import fft, fftfreq
 
         fig, axes = plt.subplots(2, 2, figsize=(16, 10))
 

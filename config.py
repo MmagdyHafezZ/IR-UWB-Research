@@ -17,7 +17,7 @@ class Config:
     TX_GAIN = -5  
 
     
-    RX_CHANNEL = 1  
+    RX_CHANNEL = 0  
     RX_FREQ = 2.45e9  
     RX_SAMPLE_RATE = 31.25e6  
     RX_GAIN_MODE = True  
@@ -33,7 +33,7 @@ class Config:
     
     NUM_PULSES = 1000  
     SAMPLES_PER_PULSE = 1024  
-    RECORDING_DURATION = 30  
+    RECORDING_DURATION = 6000 
 
     
     RANGE_BINS = SAMPLES_PER_PULSE  

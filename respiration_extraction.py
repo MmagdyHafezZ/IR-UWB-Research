@@ -2,12 +2,38 @@
 Respiration Extraction Module
 Extracts breathing signal and estimates breathing rate using time-domain and frequency-domain methods
 """
-
-import numpy as np
-from scipy import signal
-from scipy.fft import fft, fftfreq
+from scipy.fftpack import fft, fftfreq
 from config import Config
 from vmd import vmd, select_respiration_mode
+import numpy as np
+from scipy import signal
+if not hasattr(signal, "find_peaks"):
+    def _fallback_find_peaks(x, height=None, distance=None, prominence=None):
+        """
+        Simple local-maximum peak finder as a fallback for old SciPy.
+        Only supports a subset of the real find_peaks options.
+        """
+        x = np.asarray(x)
+        # basic local maxima
+        peaks = np.where((x[1:-1] > x[:-2]) & (x[1:-1] > x[2:]))[0] + 1
+
+        # Optional height filtering
+        if height is not None:
+            if isinstance(height, dict):
+                hmin = height.get("min", None)
+            else:
+                hmin = height
+            if hmin is not None:
+                peaks = peaks[x[peaks] >= hmin]
+
+        properties = {}
+        if height is not None:
+            properties["peak_heights"] = x[peaks]
+
+        # NOTE: distance/prominence are ignored in this simple fallback
+        return peaks, properties
+
+    signal.find_peaks = _fallback_find_peaks
 
 
 class RespirationExtractor:
