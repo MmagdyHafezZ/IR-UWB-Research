@@ -212,50 +212,6 @@ class Visualizer:
 
         _show_plot_if_enabled()
 
-    def plot_frequency_spectrum(self, frequencies, spectrum, breathing_rate_freq=None, save=True):
-        """
-        Plot frequency spectrum of breathing signal.
-
-        Args:
-            frequencies: Frequency values in Hz (1D)
-            spectrum: Magnitude spectrum (1D)
-            breathing_rate_freq: Detected breathing rate in Hz (optional marker)
-            save: Whether to save the plot
-        """
-        fig, ax = plt.subplots(figsize=(12, 6))
-
-        # Focus on the 0–1 Hz band by default (covers normal breathing)
-        mask = (frequencies >= 0) & (frequencies <= 1.0)
-        freq_plot = frequencies[mask]
-        spec_plot = spectrum[mask]
-
-        ax.plot(freq_plot, spec_plot, 'b-', linewidth=2)
-        ax.set_xlabel('Frequency (Hz)')
-        ax.set_ylabel('Magnitude')
-        ax.set_title('Frequency Spectrum of Breathing Signal')
-        ax.grid(True, alpha=0.3)
-
-        # Breathing band shading
-        if hasattr(Config, "BREATHING_FREQ_MIN") and hasattr(Config, "BREATHING_FREQ_MAX"):
-            ax.axvspan(Config.BREATHING_FREQ_MIN, Config.BREATHING_FREQ_MAX,
-                       alpha=0.2, color='green', label='Breathing Range')
-
-        # Mark detected breathing rate
-        if breathing_rate_freq is not None and breathing_rate_freq > 0:
-            ax.axvline(breathing_rate_freq, color='r', linestyle='--',
-                       linewidth=2, label=f'Detected Rate ({breathing_rate_freq:.3f} Hz)')
-
-        if len(ax.get_legend_handles_labels()[0]) > 0:
-            ax.legend()
-
-        plt.tight_layout()
-
-        if save:
-            plt.savefig(f'{self.output_dir}/frequency_spectrum.png', dpi=150, bbox_inches='tight')
-            print(f"Saved plot to {self.output_dir}/frequency_spectrum.png")
-
-        _show_plot_if_enabled()
-
     def plot_complete_analysis(self, rtm, variance_profile, range_bins, time_axis,
                               chest_bin, breathing_waveform, breathing_time,
                               frequencies, spectrum, results, save=True):
@@ -382,9 +338,12 @@ class Visualizer:
 
         ax5.text(
             0.1, 0.5, summary_text, transform=ax5.transAxes,
-            fontsize=10, verticalalignment='center', fontfamily='monospace',
+            fontsize=10,
+            verticalalignment='center',
+            fontdict={'family': 'monospace'},
             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3)
         )
+
 
         if save:
             plt.savefig(f'{self.output_dir}/complete_analysis.png',

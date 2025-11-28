@@ -18,7 +18,19 @@ from scipy import signal
 from scipy.ndimage import gaussian_filter1d
 import warnings
 warnings.filterwarnings('ignore')
+def safe_nan_to_num(x, fill=0.0):
+    """
+    NumPy-version-safe replacement for np.nan_to_num with keywords.
 
+    - Works on old NumPy (no nan/posinf/neginf kwargs)
+    - Forces all non-finite values (NaN, ±Inf) to `fill`
+    """
+    x = np.asarray(x)
+    # Use whatever np.nan_to_num your NumPy provides
+    x = np.nan_to_num(x)  # no keywords, compatible with old versions
+    # Explicitly fix any remaining non-finite values
+    x[~np.isfinite(x)] = fill
+    return x
 
 class UWBProcessor:
     """Complete IR-UWB processing pipeline with all fixes"""
@@ -107,7 +119,8 @@ class UWBProcessor:
         # Check for NaN/Inf before processing
         if not np.all(np.isfinite(rtm_matrix)):
             print("Warning: NaN/Inf in input, replacing with zeros")
-            rtm_matrix = np.nan_to_num(rtm_matrix, nan=0.0, posinf=0.0, neginf=0.0)
+            rtm_matrix = safe_nan_to_num(rtm_matrix, fill=0.0)
+
 
         # Compute mean over slow-time (axis=0) for each range bin
         clutter_profile = np.mean(rtm_matrix, axis=0, keepdims=True)
@@ -234,7 +247,9 @@ class UWBProcessor:
             return np.zeros(len(chest_signal))
 
         # Replace any NaN/Inf
-        chest_signal = np.nan_to_num(chest_signal, nan=0.0, posinf=0.0, neginf=0.0)
+        # Replace any NaN/Inf
+        chest_signal = safe_nan_to_num(chest_signal, fill=0.0)
+
 
         # Extract phase (angle of complex number)
         phase_raw = np.angle(chest_signal)
@@ -280,7 +295,8 @@ class UWBProcessor:
         # Check for numerical issues
         if not np.all(np.isfinite(breathing_signal)):
             print("Warning: Non-finite values after filtering, replacing")
-            breathing_signal = np.nan_to_num(breathing_signal, nan=0.0)
+            breathing_signal = safe_nan_to_num(breathing_signal, fill=0.0)
+
 
         print(f"Breathing signal: std={np.std(breathing_signal):.3f}, mean={np.mean(breathing_signal):.3e}")
 

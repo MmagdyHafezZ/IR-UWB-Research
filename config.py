@@ -12,15 +12,15 @@ class Config:
 
     
     TX_CHANNEL = 0  
-    TX_FREQ = 2.45e9  
+    TX_FREQ = 4.3e9  
     TX_SAMPLE_RATE = 20e6  
     TX_GAIN = 0  # Slightly higher TX gain for better SNR (adjust if saturation occurs)
 
     
     RX_CHANNEL = 0  # Stay on RX1 as requested
-    RX_FREQ = 2.45e9  
+    RX_FREQ = 4.3e9  
     RX_SAMPLE_RATE = 31.25e6  
-    RX_GAIN_MODE = False  # Use manual gain for stability
+    RX_GAIN_MODE = True  # Use manual gain for stability
     RX_GAIN_DB = 35  # Manual RX gain in dB (tune down if clipping, up if too noisy)
     RX_BITS = 16  
     RX_TIMEOUT_US = int(5e6)  
