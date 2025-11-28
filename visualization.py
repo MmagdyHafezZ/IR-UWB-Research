@@ -338,9 +338,12 @@ class Visualizer:
 
         ax5.text(
             0.1, 0.5, summary_text, transform=ax5.transAxes,
-            fontsize=10, verticalalignment='center', fontfamily='monospace',
+            fontsize=10,
+            verticalalignment='center',
+            fontdict={'family': 'monospace'},
             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3)
         )
+
 
         if save:
             plt.savefig(f'{self.output_dir}/complete_analysis.png',
