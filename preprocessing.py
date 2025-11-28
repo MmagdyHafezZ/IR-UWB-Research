@@ -180,7 +180,8 @@ class Preprocessor:
 
         return self.variance_profile
 
-    def detect_chest_range_bin(self, method="variance", search_range=None):
+    def detect_chest_range_bin(self, method="variance", search_range=None,
+                               min_range_m=0.3, max_range_m=3.0):
         """
         Detect the range bin corresponding to the subject's chest
 
@@ -197,13 +198,24 @@ class Preprocessor:
             if self.variance_profile is None:
                 self.calculate_slow_time_variance()
 
-            
-            if search_range is not None:
-                min_bin, max_bin = search_range
-                search_variance = self.variance_profile[min_bin:max_bin]
-                chest_bin = min_bin + np.argmax(search_variance)
-            else:
-                chest_bin = np.argmax(self.variance_profile)
+            # Derive search range in bins if not provided
+            if search_range is None:
+                from range_time_matrix import RangeTimeMatrix
+                dummy_rtm = RangeTimeMatrix(self.processed_matrix)
+                dummy_rtm.construct_matrix()
+                range_bins = dummy_rtm.get_range_bins()
+                min_bin = int(np.searchsorted(range_bins, min_range_m))
+                max_bin = int(np.searchsorted(range_bins, max_range_m))
+                search_range = (min_bin, max_bin if max_bin > min_bin else len(range_bins))
+
+            min_bin, max_bin = search_range
+            min_bin = max(0, min_bin)
+            max_bin = min(len(self.variance_profile), max_bin)
+            if min_bin >= max_bin:
+                min_bin, max_bin = 0, len(self.variance_profile)
+
+            search_variance = self.variance_profile[min_bin:max_bin]
+            chest_bin = min_bin + np.argmax(search_variance)
 
         elif method == "max_amplitude":
             
@@ -220,7 +232,6 @@ class Preprocessor:
             print(f"Unknown detection method: {method}")
             chest_bin = 0
 
-        
         from range_time_matrix import RangeTimeMatrix
         dummy_rtm = RangeTimeMatrix(self.processed_matrix)
         dummy_rtm.construct_matrix()
@@ -310,7 +321,9 @@ class Preprocessor:
         self.calculate_slow_time_variance()
 
         
-        chest_bin = self.detect_chest_range_bin(method="variance")
+        chest_bin = self.detect_chest_range_bin(method="variance",
+                                                min_range_m=0.3,
+                                                max_range_m=3.0)
 
         
         if normalize:

@@ -76,9 +76,11 @@ def improved_chest_detection(variance_profile, range_bins, smoothing_sigma=5.0,
     # Peaks must be prominent above median
     min_prominence = prominence_factor * std_var
 
-    peaks, properties = signal.find_peaks(search_variance,
-                                         prominence=min_prominence,
-                                         distance=10)  # At least 10 bins apart
+    peaks, properties = signal.find_peaks(
+        search_variance,
+        prominence=min_prominence,
+        distance=10  # At least 10 bins apart
+    )
 
     # Step 4: Select best peak
     if len(peaks) == 0:
@@ -97,7 +99,7 @@ def improved_chest_detection(variance_profile, range_bins, smoothing_sigma=5.0,
         'smoothed_variance': smoothed_variance,
         'search_range': (range_bins[search_bins[0]], range_bins[search_bins[-1]]),
         'num_peaks': len(peaks),
-        'peak_prominence': properties['prominences'] if len(peaks) > 0 else [],
+        'peak_prominence': properties.get('prominences', []) if isinstance(properties, dict) else [],
         'chest_range': range_bins[chest_bin],
         'variance_at_chest': smoothed_variance[chest_bin],
         'median_variance': median_var

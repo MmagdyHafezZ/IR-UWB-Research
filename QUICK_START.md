@@ -18,27 +18,34 @@ python3 tests.py
 
 ## 🚀 Run System
 
-### NEW: Interactive Real-Time Monitor (Recommended!)
+### ⭐ Unified Monitor (THE ONLY ONE TO USE!)
 
 ```bash
-# Launch interactive CLI with live monitoring
-python3 realtime_monitor.py
+# Launch the unified monitor - ALL features, ALL fixes included
+python3 monitor.py
 ```
 
+**Why monitor.py?**
+- ✅ **Only one file** - No confusion about which to use
+- ✅ **All features** - Everything from all previous versions
+- ✅ **All fixes** - Complex type handling, stable input, no overwrites
+- ✅ **Production ready** - Tested and reliable
+
 **Features:**
-- **Auto-refresh display** - Real-time breathing rate every 2 seconds
+- **Stable input** - Command prompt never disappears
+- **On-demand refresh** - Display updates when you want (press Enter)
 - **Live visualization** - Press `v` for 6 live plots
-- **Interactive commands** - Pause, export, control on-the-fly
+- **Interactive commands** - Full control while monitoring
 - **Full threading** - Capture, processing, display in parallel
 - **No hardware needed** - Works with realistic synthetic data
 
-**Commands while running:**
-- `v` - Toggle live visualization (6 real-time plots)
+**Commands:**
+- `s` or **Enter** - Refresh display
+- `v` - Toggle live visualization (6 plots)
 - `p` - Pause capture
 - `r` - Resume capture
 - `e` - Export data to .npz file
 - `x` - Clear buffer
-- `s` - Show status
 - `h` - Help
 - `q` - Quit
 
@@ -108,9 +115,9 @@ Results saved to `output/YYYYMMDD_HHMMSS/`:
 
 | File | Purpose |
 |------|---------|
-| **New Interactive System** | |
-| `realtime_monitor.py` | **Interactive CLI with threading** |
-| `live_visualization.py` | **Live matplotlib dashboard** |
+| **Production System** | |
+| `monitor.py` | **Unified production CLI (THE ONE TO USE!)** |
+| `simple_visualization.py` | **Process-safe live plots** |
 | `processing_fixes.py` | **Improved signal processing** |
 | `demo_processing_improvements.py` | **Before/after demo** |
 | **Core System** | |
@@ -124,17 +131,16 @@ Results saved to `output/YYYYMMDD_HHMMSS/`:
 | `main.py` | Classic pipeline runner |
 | `tests.py` | Verify system (7 tests) |
 
-## 🔄 Threading Architecture (realtime_monitor.py)
+## 🔄 Threading Architecture (monitor.py)
 
-The interactive monitor uses **4 concurrent threads** + **multiprocessing**:
+The unified monitor uses **3 concurrent threads**:
 
 ```
 Main Thread (UI)
 ├── Capture Thread ────► Circular Buffer (thread-safe)
 ├── Processing Thread ──► Results Queue
-│   └── Uses multiprocessing pool for VMD
-├── Dashboard Thread ───► Live matplotlib plots
-└── Command Handler ────► Interactive controls
+│   └── All processing fixes included
+└── Visualization ──────► Separate process (when enabled)
 ```
 
 **Benefits:**
@@ -161,7 +167,7 @@ Main Thread (UI)
 
 2. **Launch interactive monitor**:
    ```bash
-   python3 realtime_monitor.py
+   python3 monitor.py
    # Starts in synthetic mode (no hardware needed)
    ```
 
@@ -179,7 +185,7 @@ Main Thread (UI)
 
 2. **Run interactive monitor**:
    ```bash
-   python3 realtime_monitor.py
+   python3 monitor.py
    # Choose 'y' when asked "Use hardware?"
    ```
 

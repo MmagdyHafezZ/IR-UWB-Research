@@ -31,7 +31,7 @@ class Config:
     PULSE_REPETITION_FREQ = 1000  
 
     
-    NUM_PULSES = 1000  
+    NUM_PULSES = 10000  
     SAMPLES_PER_PULSE = 1024  
     RECORDING_DURATION = 30  # seconds; avoid unbounded captures by default
 

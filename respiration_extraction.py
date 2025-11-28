@@ -94,10 +94,16 @@ class RespirationExtractor:
 
         b, a = signal.butter(order, [low, high], btype='band', analog=False)
 
-        
+        # Require enough samples to span at least two breaths at the lowest freq
+        min_duration = 2.0 / freq_min
+        if len(self.chest_signal) < min_duration * self.sampling_rate:
+            print(f"Warning: Only {len(self.chest_signal)/self.sampling_rate:.1f}s of data; "
+                  f"breathing detection is unreliable (< {min_duration:.1f}s needed).")
+
+        # Extract phase information (more sensitive to small displacements)
         phase_signal = np.unwrap(np.angle(self.chest_signal))
 
-        
+        # Filter the phase signal
         self.filtered_signal = signal.filtfilt(b, a, phase_signal)
 
         print(f"Filtered signal shape: {self.filtered_signal.shape}")
