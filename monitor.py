@@ -254,58 +254,32 @@ class ProcessingThread(threading.Thread):
         # Capture verbose debug output from processing functions
         debug_output = io.StringIO()
         with contextlib.redirect_stdout(debug_output):
+            # Use the fixed UWB processor
+            from uwb_processing_fixed import UWBProcessor
+            processor = UWBProcessor(Config)
+
+            # Construct range-time matrix
             rtm = RangeTimeMatrix(raw_data)
             rtm_matrix = rtm.construct_matrix()
-            range_bins = rtm.get_range_bins()
 
-            # Always use proper clutter removal (hybrid method with EMA + high-pass)
-            clutter_removed, _ = improved_clutter_removal(
-                rtm_matrix,
-                method='hybrid'  # This now does EMA + high-pass filter
-            )
+            # Process with all fixes
+            results = processor.process_complete(rtm_matrix)
 
-            preprocessor = Preprocessor(clutter_removed)
-            preprocessor.calculate_slow_time_variance()
+            # Extract key metrics
+            breathing_rate = results.get('bpm', 0)
+            chest_range = results.get('chest_range', 0)
+            quality = results.get('quality', 'unknown')
 
-            chest_bin, chest_info = improved_chest_detection(
-                preprocessor.variance_profile,
-                range_bins,
-                smoothing_sigma=5.0,
-                prominence_factor=2.0,
-                min_range_m=0.3,
-                max_range_m=3.0
-            )
-
-            chest_signal = clutter_removed[:, chest_bin]
-
-            phase_cleaned, phase_info = improved_phase_extraction(
-                chest_signal,
-                Config.PULSE_REPETITION_FREQ,
-                detrend=True,
-                remove_dc=True,
-                normalize=False
-            )
-
-            from scipy import signal
-            nyquist = Config.PULSE_REPETITION_FREQ / 2
-            low = Config.BREATHING_FREQ_MIN / nyquist
-            high = Config.BREATHING_FREQ_MAX / nyquist
-
-            try:
-                b, a = signal.butter(4, [low, high], btype='band')
-                phase_filtered = signal.filtfilt(b, a, phase_cleaned)
-            except:
-                phase_filtered = phase_cleaned
-
-            extractor = RespirationExtractor(phase_filtered, Config.PULSE_REPETITION_FREQ)
-            rate_time = extractor.detect_breathing_rate_time_domain()
-            rate_freq = extractor.detect_breathing_rate_frequency_domain()
-
-            breathing_rate = rate_freq if rate_freq > 0 else rate_time
-
-            quality_report = diagnose_signal_quality(chest_signal, Config.PULSE_REPETITION_FREQ)
-            snr = 10 * np.log10(quality_report['spectral']['breathing_fraction'] + 1e-10)
-            quality_score = quality_report['spectral']['breathing_fraction']
+            # Map quality to score
+            if quality == 'good':
+                quality_score = 0.8
+                snr = 10.0
+            elif quality == 'poor':
+                quality_score = 0.3
+                snr = -5.0
+            else:
+                quality_score = 0.1
+                snr = -10.0
 
         # Store captured debug output for viewing on demand
         captured_text = debug_output.getvalue()
@@ -317,22 +291,25 @@ class ProcessingThread(threading.Thread):
         measurement_time = datetime.now()
         measurement_timestamp = measurement_time.timestamp()
 
-        self.metrics_tracker.add_measurement(breathing_rate, snr, quality_score, measurement_timestamp)
+        # Only track valid measurements
+        if breathing_rate > 0:
+            self.metrics_tracker.add_measurement(breathing_rate, snr, quality_score, measurement_timestamp)
 
-        results = {
+        # Prepare results for display
+        display_results = {
             'breathing_rate': breathing_rate,
             'snr': snr,
             'quality_score': quality_score,
-            'chest_bin': chest_bin,
-            'chest_range': range_bins[chest_bin],
-            'phase_waveform': phase_filtered[-500:],
-            'variance_profile': chest_info['smoothed_variance'],
-            'range_bins': range_bins,
+            'chest_bin': results.get('chest_bin', 0),
+            'chest_range': chest_range,
+            'phase_waveform': results.get('breathing_signal', np.zeros(500))[-500:],
+            'variance_profile': results.get('variance_profile', np.zeros(512)),
+            'range_bins': results.get('range_axis', np.linspace(0, 10, 512)),
             'buffer_size': len(raw_data),
             'timestamp': measurement_time
         }
 
-        self.results_queue.put(results)
+        self.results_queue.put(display_results)
 
     def stop(self):
         self.running = False
