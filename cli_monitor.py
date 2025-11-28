@@ -252,8 +252,12 @@ class ProcessingThread(threading.Thread):
                 self.status_message = "Ready"
                 self.last_error = None
             except Exception as e:
+                import traceback
                 self.last_error = str(e)
                 self.status_message = f"Error: {str(e)[:50]}"
+                # Print full traceback for debugging
+                console.print(f"\n[red]Processing Error:[/red] {e}")
+                console.print(f"[dim]{traceback.format_exc()}[/dim]")
 
     def _process_current_buffer(self):
         """Process current buffer data"""

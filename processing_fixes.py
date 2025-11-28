@@ -32,6 +32,11 @@ def improved_chest_detection(variance_profile, range_bins, smoothing_sigma=5.0,
         info: Dictionary with diagnostic information
     """
 
+    # Ensure variance_profile is real-valued (gaussian_filter1d doesn't support complex)
+    if np.iscomplexobj(variance_profile):
+        print("Warning: variance_profile is complex, taking magnitude")
+        variance_profile = np.abs(variance_profile)
+
     # Step 1: Smooth variance profile to reduce noise
     smoothed_variance = gaussian_filter1d(variance_profile, sigma=smoothing_sigma)
 
@@ -224,7 +229,14 @@ def improved_clutter_removal(rtm_matrix, method='moving_average', window_size=50
 
     elif method == 'moving_average':
         # Removes slow drift while preserving breathing
-        clutter_estimate = uniform_filter1d(rtm_matrix, size=window_size, axis=0, mode='nearest')
+        # Handle complex matrices by filtering real and imaginary parts separately
+        if np.iscomplexobj(rtm_matrix):
+            clutter_real = uniform_filter1d(rtm_matrix.real, size=window_size, axis=0, mode='nearest')
+            clutter_imag = uniform_filter1d(rtm_matrix.imag, size=window_size, axis=0, mode='nearest')
+            clutter_estimate = clutter_real + 1j * clutter_imag
+        else:
+            clutter_estimate = uniform_filter1d(rtm_matrix, size=window_size, axis=0, mode='nearest')
+
         clutter_removed = rtm_matrix - clutter_estimate
         clutter_profile = clutter_estimate
 

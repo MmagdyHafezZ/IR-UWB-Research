@@ -117,12 +117,18 @@ class RespirationExtractor:
         if self.filtered_signal is None:
             self.apply_breathing_bandpass_filter()
 
-        
-        
-        peak_prominence = np.std(self.filtered_signal) * 0.5
-        peaks, properties = signal.find_peaks(self.filtered_signal,
-                                             prominence=peak_prominence,
-                                             distance=int(self.sampling_rate * 1.0))  
+        sig_std = np.std(self.filtered_signal)
+        if sig_std < 1e-6:
+            print("Warning: Breathing waveform is flat; cannot detect peaks")
+            self.breathing_rate = 0
+            return 0
+
+        peak_prominence = sig_std * 0.5
+        peaks, properties = signal.find_peaks(
+            self.filtered_signal,
+            prominence=peak_prominence,
+            distance=int(self.sampling_rate * 1.0)
+        )
 
         num_peaks = len(peaks)
         print(f"Detected {num_peaks} breathing peaks")
@@ -174,16 +180,19 @@ class RespirationExtractor:
             self.breathing_rate_fft = 0
             return 0
 
-        
         dominant_idx = np.argmax(yf_breathing)
         dominant_freq = xf_breathing[dominant_idx]
         dominant_magnitude = yf_breathing[dominant_idx]
 
-        
         mean_magnitude = np.mean(yf_breathing)
         magnitude_ratio = dominant_magnitude / (mean_magnitude + 1e-10)
 
-        
+        in_band_power = np.sum(yf_breathing ** 2)
+        if in_band_power < 1e-6:
+            print("Warning: Breathing band energy too low; treating as no detection")
+            self.breathing_rate_fft = 0
+            return 0
+
         if magnitude_ratio < 2.0:
             print("Warning: No significant breathing peak detected in spectrum")
             self.breathing_rate_fft = 0
@@ -582,14 +591,11 @@ class RespirationExtractor:
             print("\n--- VMD Method (Variational Mode Decomposition) ---")
 
             try:
-                
                 self.apply_vmd_decomposition()
 
-                
                 vmd_rate_time = self.detect_breathing_rate_vmd_time_domain()
                 vmd_rate_freq = self.detect_breathing_rate_vmd_frequency_domain()
 
-                
                 if vmd_rate_time > 0 and vmd_rate_freq > 0:
                     vmd_rate_avg = (vmd_rate_time + vmd_rate_freq) / 2
                 elif vmd_rate_time > 0:
@@ -612,23 +618,22 @@ class RespirationExtractor:
                 print(f"Warning: VMD analysis failed: {e}")
                 vmd_results = None
 
-        
-        
-        
-        results = {
-            'baseline': {
-                'breathing_rate_time': rate_time,
-                'breathing_rate_freq': rate_freq,
-                'breathing_rate_avg': rate_avg,
-                'signal_quality': quality,
-                'pattern_metrics': pattern_metrics
-            },
-            'vmd': vmd_results
+        # Build flat result for baseline; also provide legacy 'baseline' entry for tests
+        baseline_results = {
+            'breathing_rate_time': rate_time,
+            'breathing_rate_freq': rate_freq,
+            'breathing_rate_avg': rate_avg,
+            'signal_quality': quality,
+            'pattern_metrics': pattern_metrics
         }
 
-        
-        
-        
+        results = {
+            **baseline_results,
+            'baseline': baseline_results
+        }
+        if vmd_results is not None:
+            results['vmd'] = vmd_results
+
         print("\n" + "=" * 60)
         print("Respiration Analysis Complete")
         print("=" * 60)

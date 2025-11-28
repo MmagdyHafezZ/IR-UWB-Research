@@ -128,6 +128,7 @@ class SDRCapture:
         self.rx_stream = None
         self.impulse_signal = None
         self.hardware_mode = hardware_mode
+        self.streams_active = False
 
         if hardware_mode:
             if not SOAPY_AVAILABLE:
@@ -282,6 +283,7 @@ class SDRCapture:
         
         self.sdr.activateStream(self.tx_stream)
         self.sdr.activateStream(self.rx_stream)
+        self.streams_active = True
 
         
         samples_per_pulse = Config.SAMPLES_PER_PULSE
@@ -317,6 +319,7 @@ class SDRCapture:
             
             self.sdr.deactivateStream(self.tx_stream)
             self.sdr.deactivateStream(self.rx_stream)
+            self.streams_active = False
 
         print(f"Capture complete: {len(all_iq_data)} pulses recorded")
 
@@ -339,30 +342,30 @@ class SDRCapture:
         """
         if self.sdr is None:
             raise RuntimeError("Hardware not initialized. Cannot record continuous data.")
+        if self.impulse_signal is None:
+            raise RuntimeError("Impulse signal not generated. Call generate_impulse_signal() first.")
 
         print(f"\nRecording continuous data for {duration_seconds} seconds...")
 
         total_samples = int(Config.RX_SAMPLE_RATE * duration_seconds)
 
-        
-        
+        # Build a single PRF-period containing one pulse at the start
         tx_samples_per_period = int(Config.TX_SAMPLE_RATE / Config.PULSE_REPETITION_FREQ)
+        base_interval = np.zeros(tx_samples_per_period, dtype=np.complex64)
 
-        
-        num_periods = int(Config.TX_SAMPLE_RATE * duration_seconds / tx_samples_per_period) + 1
-        tx_signal = np.zeros(num_periods * tx_samples_per_period, dtype=np.complex64)
+        # Use the existing generated pulse shape for one interval
+        pulse_len = min(len(self.impulse_signal), tx_samples_per_period)
+        base_interval[:pulse_len] = self.impulse_signal[:pulse_len]
 
-        
-        impulse_len = len(self.impulse_signal)
-        for i in range(num_periods):
-            start_idx = i * tx_samples_per_period
-            tx_signal[start_idx:start_idx + impulse_len] = self.impulse_signal
-
+        # Repeat this interval for the desired duration
+        num_periods = int(duration_seconds * Config.PULSE_REPETITION_FREQ) + 1
+        tx_signal = np.tile(base_interval, num_periods)
         print(f"  TX pulse train: {num_periods} pulses, {len(tx_signal)} samples total")
 
         
         self.sdr.activateStream(self.tx_stream)
         self.sdr.activateStream(self.rx_stream)
+        self.streams_active = True
 
         all_data = []
         tx_offset = 0
@@ -409,6 +412,7 @@ class SDRCapture:
         finally:
             self.sdr.deactivateStream(self.tx_stream)
             self.sdr.deactivateStream(self.rx_stream)
+            self.streams_active = False
 
         print("Capture complete")
 
@@ -427,7 +431,37 @@ class SDRCapture:
         if self.rx_stream is not None:
             self.sdr.closeStream(self.rx_stream)
 
+        self.streams_active = False
+
         print("Cleanup complete")
+
+    def record_single_pulse(self):
+        """
+        Transmit one impulse interval and capture a single pulse worth of samples.
+
+        Returns:
+            1D complex array of length Config.SAMPLES_PER_PULSE
+        """
+        if self.sdr is None:
+            raise RuntimeError("Hardware not initialized. Cannot record pulse.")
+        if self.impulse_signal is None:
+            raise RuntimeError("Impulse signal not generated. Call generate_impulse_signal() first.")
+        if self.tx_stream is None or self.rx_stream is None:
+            raise RuntimeError("Streams not set up. Call setup_transmitter()/setup_receiver() first.")
+
+        # Activate streams once
+        if not self.streams_active:
+            self.sdr.activateStream(self.tx_stream)
+            self.sdr.activateStream(self.rx_stream)
+            self.streams_active = True
+
+        samples_per_interval = int(Config.TX_SAMPLE_RATE / Config.PULSE_REPETITION_FREQ)
+        interval = self.impulse_signal[:samples_per_interval]
+
+        # Transmit one interval then capture one pulse worth of RX samples
+        self.sdr.writeStream(self.tx_stream, [interval], len(interval))
+        iq_data = self.capture_raw_iq_data(Config.SAMPLES_PER_PULSE)
+        return iq_data
 
 
 def test_sdr_capture():

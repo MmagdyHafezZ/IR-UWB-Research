@@ -33,7 +33,7 @@ class Config:
     
     NUM_PULSES = 1000  
     SAMPLES_PER_PULSE = 1024  
-    RECORDING_DURATION = 6000 
+    RECORDING_DURATION = 30  # seconds; avoid unbounded captures by default
 
     
     RANGE_BINS = SAMPLES_PER_PULSE  
