@@ -256,17 +256,17 @@ class ProcessingThread(threading.Thread):
         with contextlib.redirect_stdout(debug_output):
             rtm = RangeTimeMatrix(raw_data)
             rtm_matrix = rtm.construct_matrix()
+            range_bins = rtm.get_range_bins()
 
+            # Always use proper clutter removal (hybrid method with EMA + high-pass)
             clutter_removed, _ = improved_clutter_removal(
                 rtm_matrix,
-                method='moving_average',
-                window_size=50
+                method='hybrid'  # This now does EMA + high-pass filter
             )
 
             preprocessor = Preprocessor(clutter_removed)
             preprocessor.calculate_slow_time_variance()
 
-            range_bins = rtm.get_range_bins()
             chest_bin, chest_info = improved_chest_detection(
                 preprocessor.variance_profile,
                 range_bins,

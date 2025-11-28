@@ -187,9 +187,18 @@ class SDRCapture:
         actual_rate = self.sdr.getSampleRate(SOAPY_SDR_RX, Config.RX_CHANNEL)
         print(f"RX Sample Rate: {actual_rate/1e6:.2f} MHz")
 
-        
+        # Gain control
         self.sdr.setGainMode(SOAPY_SDR_RX, Config.RX_CHANNEL, Config.RX_GAIN_MODE)
-        print(f"RX AGC Enabled: {Config.RX_GAIN_MODE}")
+        if Config.RX_GAIN_MODE:
+            print(f"RX AGC Enabled: {Config.RX_GAIN_MODE}")
+        else:
+            # Manual gain path
+            if hasattr(Config, "RX_GAIN_DB"):
+                self.sdr.setGain(SOAPY_SDR_RX, Config.RX_CHANNEL, Config.RX_GAIN_DB)
+                actual_gain = self.sdr.getGain(SOAPY_SDR_RX, Config.RX_CHANNEL)
+                print(f"RX Manual Gain: {actual_gain} dB")
+            else:
+                print("RX_GAIN_DB not set; using device default gain")
 
         
         self.sdr.setFrequency(SOAPY_SDR_RX, Config.RX_CHANNEL, Config.RX_FREQ)

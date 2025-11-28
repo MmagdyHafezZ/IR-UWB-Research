@@ -322,7 +322,7 @@ class Preprocessor:
 
         
         chest_bin = self.detect_chest_range_bin(method="variance",
-                                                min_range_m=0.3,
+                                                min_range_m=0.5,
                                                 max_range_m=3.0)
 
         
