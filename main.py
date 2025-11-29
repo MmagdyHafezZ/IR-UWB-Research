@@ -17,6 +17,7 @@ from preprocessing import Preprocessor
 from respiration_extraction import RespirationExtractor
 from visualization import Visualizer
 
+
 class RespirationDetectionSystem:
     """Main system class integrating all components"""
 
@@ -45,22 +46,26 @@ class RespirationDetectionSystem:
 
         self.results = {}
 
-    # >>> ADDED: small helper to compute a safe breathing_rate_avg
+    @staticmethod
+    def _safe_get(d, key, default=0.0):
+        """Safely get a value from dict, returning default if missing or None"""
+        val = d.get(key, default)
+        if val is None:
+            return default
+        return val
+
     @staticmethod
     def _compute_breathing_rate_avg(results_dict):
         """
         Compute a safe breathing_rate_avg from available fields.
-        Uses the mean of breathing_rate_time and breathing_rate_freq if both exist,
-        otherwise uses whichever is available, or 0.0 as a last resort.
         """
         br_time = results_dict.get('breathing_rate_time')
         br_freq = results_dict.get('breathing_rate_freq')
 
-        valid = [v for v in (br_time, br_freq) if isinstance(v, (int, float, np.floating))]
+        valid = [v for v in (br_time, br_freq) if isinstance(v, (int, float, np.floating)) and v > 0]
         if not valid:
             return 0.0
         return float(sum(valid) / len(valid))
-    # <<< END ADDED
 
     def step1_capture_data(self):
         """Step 1: Capture raw IQ data from SDR"""
@@ -168,10 +173,9 @@ class RespirationDetectionSystem:
 
         respiration_results = self.extractor.run_full_analysis()
 
-        # >>> ADDED: ensure breathing_rate_avg exists to avoid KeyError
-        if 'breathing_rate_avg' not in respiration_results:
+        # Ensure breathing_rate_avg exists
+        if 'breathing_rate_avg' not in respiration_results or respiration_results['breathing_rate_avg'] is None:
             respiration_results['breathing_rate_avg'] = self._compute_breathing_rate_avg(respiration_results)
-        # <<< END ADDED
 
         breathing_time, breathing_waveform = self.extractor.get_breathing_waveform()
         frequencies, spectrum = self.extractor.get_frequency_spectrum()
@@ -188,8 +192,8 @@ class RespirationDetectionSystem:
         self.results['spectrum'] = spectrum
 
         if Config.PLOT_RESULTS:
-            br_avg = respiration_results.get('breathing_rate_avg', 0.0)
-            br_freq = respiration_results.get('breathing_rate_freq', 0.0)
+            br_avg = self._safe_get(respiration_results, 'breathing_rate_avg', 0.0)
+            br_freq = self._safe_get(respiration_results, 'breathing_rate_freq', 0.0)
 
             self.visualizer.plot_breathing_waveform(
                 breathing_time,
@@ -215,39 +219,38 @@ class RespirationDetectionSystem:
 
             self.visualizer.plot_complete_analysis(
                 rtm=matrix,
-                variance_profile=self.results['variance_profile'],
-                range_bins=self.results['range_bins'],
-                time_axis=self.results['time_axis'],
-                chest_bin=self.results['chest_bin'],
-                breathing_waveform=self.results['breathing_waveform'],
-                breathing_time=self.results['breathing_time'],
-                frequencies=self.results['frequencies'],
-                spectrum=self.results['spectrum'],
+                variance_profile=self.results.get('variance_profile', np.zeros(10)),
+                range_bins=self.results.get('range_bins', np.linspace(0, 10, 10)),
+                time_axis=self.results.get('time_axis', np.linspace(0, 20, 100)),
+                chest_bin=self.results.get('chest_bin', 0),
+                breathing_waveform=self.results.get('breathing_waveform', np.zeros(100)),
+                breathing_time=self.results.get('breathing_time', np.linspace(0, 20, 100)),
+                frequencies=self.results.get('frequencies', np.linspace(0, 1, 50)),
+                spectrum=self.results.get('spectrum', np.zeros(50)),
                 results=self.results
             )
 
         import json
 
-        # >>> CHANGED: use get() and recompute avg safely
-        br_time = float(self.results.get('breathing_rate_time', 0.0))
-        br_freq = float(self.results.get('breathing_rate_freq', 0.0))
-        br_avg = float(self.results.get('breathing_rate_avg', self._compute_breathing_rate_avg(self.results)))
-        signal_quality = float(self.results.get('signal_quality', 0.0))
+        # Safe extraction with defaults
+        br_time = float(self._safe_get(self.results, 'breathing_rate_time', 0.0))
+        br_freq = float(self._safe_get(self.results, 'breathing_rate_freq', 0.0))
+        br_avg = float(self._safe_get(self.results, 'breathing_rate_avg', self._compute_breathing_rate_avg(self.results)))
+        signal_quality = float(self._safe_get(self.results, 'signal_quality', 0.0))
 
-        pattern = self.results.get('pattern_metrics', {})
-        breathing_depth = float(pattern.get('breathing_depth', 0.0))
-        regularity = float(pattern.get('regularity', 0.0))
-        ie_ratio = float(pattern.get('ie_ratio', 0.0))
-        num_breaths = int(pattern.get('num_breaths', 0))
-        # <<< END CHANGED
+        pattern = self.results.get('pattern_metrics') or {}
+        breathing_depth = float(self._safe_get(pattern, 'breathing_depth', 0.0))
+        regularity = float(self._safe_get(pattern, 'regularity', 0.0))
+        ie_ratio = float(self._safe_get(pattern, 'ie_ratio', 0.0))
+        num_breaths = int(self._safe_get(pattern, 'num_breaths', 0))
 
         results_json = {
             'breathing_rate_time_bpm': br_time,
             'breathing_rate_freq_bpm': br_freq,
             'breathing_rate_avg_bpm': br_avg,
             'signal_quality': signal_quality,
-            'chest_range_m': float(self.results.get('chest_range', 0.0)),
-            'chest_bin': int(self.results.get('chest_bin', 0)),
+            'chest_range_m': float(self._safe_get(self.results, 'chest_range', 0.0)),
+            'chest_bin': int(self._safe_get(self.results, 'chest_bin', 0)),
             'pattern_metrics': {
                 'breathing_depth': breathing_depth,
                 'regularity': regularity,
@@ -277,19 +280,18 @@ class RespirationDetectionSystem:
         print("RESPIRATION DETECTION SUMMARY")
         print("=" * 70)
 
-        # >>> CHANGED: use safe .get() and recompute avg
-        br_time = float(self.results.get('breathing_rate_time', 0.0))
-        br_freq = float(self.results.get('breathing_rate_freq', 0.0))
-        br_avg = float(self.results.get('breathing_rate_avg', self._compute_breathing_rate_avg(self.results)))
-        signal_quality = float(self.results.get('signal_quality', 0.0))
-        chest_range = float(self.results.get('chest_range', 0.0))
-        chest_bin = int(self.results.get('chest_bin', 0))
+        br_time = float(self._safe_get(self.results, 'breathing_rate_time', 0.0))
+        br_freq = float(self._safe_get(self.results, 'breathing_rate_freq', 0.0))
+        br_avg = float(self._safe_get(self.results, 'breathing_rate_avg', self._compute_breathing_rate_avg(self.results)))
+        signal_quality = float(self._safe_get(self.results, 'signal_quality', 0.0))
+        chest_range = float(self._safe_get(self.results, 'chest_range', 0.0))
+        chest_bin = int(self._safe_get(self.results, 'chest_bin', 0))
 
-        pattern = self.results.get('pattern_metrics', {})
-        num_breaths = int(pattern.get('num_breaths', 0))
-        breathing_depth = float(pattern.get('breathing_depth', 0.0))
-        regularity = float(pattern.get('regularity', 0.0))
-        ie_ratio = float(pattern.get('ie_ratio', 0.0))
+        pattern = self.results.get('pattern_metrics') or {}
+        num_breaths = int(self._safe_get(pattern, 'num_breaths', 0))
+        breathing_depth = float(self._safe_get(pattern, 'breathing_depth', 0.0))
+        regularity = float(self._safe_get(pattern, 'regularity', 0.0))
+        ie_ratio = float(self._safe_get(pattern, 'ie_ratio', 0.0))
 
         print(f"Breathing Rate (Time-domain): {br_time:.1f} BPM")
         print(f"Breathing Rate (Freq-domain): {br_freq:.1f} BPM")
@@ -304,7 +306,6 @@ class RespirationDetectionSystem:
         print("=" * 70)
         print(f"\nAll results saved to: {self.output_dir}")
         print("=" * 70)
-        # <<< END CHANGED
 
     def run_complete_pipeline(self):
         """Run the complete detection pipeline"""

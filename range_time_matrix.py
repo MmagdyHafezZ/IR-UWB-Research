@@ -165,12 +165,9 @@ class RangeTimeMatrix:
                 
                 if shift > 0:
                     
-                    aligned_matrix[i, shift:] = current_pulse[:-shift] if shift < num_samples else 0
+                    aligned_matrix[i, shift:] = current_pulse[:num_samples - shift]
                 elif shift < 0:
-                    
-                    
-                    end_pos = min(num_samples, num_samples + shift)  
-                    aligned_matrix[i, -shift:] = current_pulse[:end_pos]
+                    aligned_matrix[i, :num_samples + shift] = current_pulse[-shift:]
                 else:
                     aligned_matrix[i, :] = current_pulse
 
